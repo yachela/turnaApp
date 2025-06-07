@@ -3,23 +3,22 @@ import sqlite3
 conn = sqlite3.connect('database.db')
 
 conn.execute('''
-    CREATE TABLE IF NOT EXISTS profesionales (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nombre TEXT NOT NULL,
-        especialidad TEXT NOT NULL
-    );
+   CREATE TABLE IF NOT EXISTS profesionales (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    especialidad TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE
+);
 ''')
 
 profesionales = [
-    ('Ailen Kiroz', 'Psicología'),
-    ('Agustin Morales', 'Nutrición'),
-    ('Juan Cueva', 'Kinesiología')
+    ('Ailen Kiroz', 'Psicología', 'ailen@turna.com'),
+    ('Agustin Morales', 'Nutrición', 'agustin@turna.com'),
+    ('Juan Cueva', 'Kinesiología', 'juan@turna.com')
 ]
 
-conn.executemany("INSERT INTO profesionales (nombre, especialidad) VALUES (?, ?)", profesionales)
-
-conn.commit()
-conn.close()
+conn.executemany(
+    "INSERT OR IGNORE INTO profesionales (nombre, especialidad, email) VALUES (?, ?, ?)", profesionales)
 
 conn.execute('''
     CREATE TABLE IF NOT EXISTS servicios (
@@ -43,3 +42,6 @@ conn.executemany('''
     INSERT INTO servicios (nombre, duracion, precio, profesional_id)
     VALUES (?, ?, ?, ?)
 ''', servicios)
+
+conn.commit()
+conn.close()

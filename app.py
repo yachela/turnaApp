@@ -5,10 +5,12 @@ import sqlite3
 app = Flask(__name__)
 CORS(app)
 
+
 def get_db_connection():
     conn = sqlite3.connect('database.db')
-    conn.row_factory = sqlite3.Row 
+    conn.row_factory = sqlite3.Row
     return conn
+
 
 @app.route('/profesionales', methods=['GET'])
 def get_profesionales():
@@ -16,6 +18,18 @@ def get_profesionales():
     profesionales = conn.execute('SELECT * FROM profesionales').fetchall()
     conn.close()
     return jsonify([dict(p) for p in profesionales])
+
+
+@app.route('/profesionales/<int:profesional_id>/servicios', methods=['GET'])
+def get_servicios_por_profesional(profesional_id):
+    conn = get_db_connection()
+    servicios = conn.execute(
+        'SELECT * FROM servicios WHERE profesional_id = ?',
+        (profesional_id,)
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(s) for s in servicios])
+
 
 if __name__ == '__main__':
     app.run(debug=True)

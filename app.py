@@ -66,8 +66,6 @@ def eliminar_profesional(id):
     conn.close()
     return jsonify({'status': 'eliminado'})
 
-# SERVICIOS CRUD
-
 @app.route('/profesionales/<int:prof_id>/servicios', methods=['GET'])
 def get_servicios_por_profesional(prof_id):
     conn = get_db_connection()
@@ -120,7 +118,6 @@ def eliminar_servicio(id):
     conn.close()
     return jsonify({'status': 'eliminado'})
 
-
 @app.route('/turnos', methods=['GET'])
 def listar_turnos():
     conn = get_db_connection()
@@ -166,6 +163,61 @@ def actualizar_turno(id):
 def eliminar_turno(id):
     conn = get_db_connection()
     conn.execute('DELETE FROM turnos WHERE id = ?', (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'eliminado'})
+
+@app.route('/profesionales/<int:prof_id>/disponibilidades', methods=['GET'])
+def listar_disponibilidades(prof_id):
+    conn = get_db_connection()
+    rows = conn.execute(
+        'SELECT * FROM disponibilidades WHERE profesional_id = ?',
+        (prof_id,)
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
+
+@app.route('/profesionales/<int:prof_id>/disponibilidades', methods=['POST'])
+def crear_disponibilidad(prof_id):
+    data = request.get_json()
+    conn = get_db_connection()
+    cursor = conn.execute(
+        'INSERT INTO disponibilidades (profesional_id, dia_semana, fecha_especifica, hora_inicio, hora_fin) VALUES (?, ?, ?, ?, ?)',
+        (
+            prof_id,
+            data.get('dia_semana'),
+            data.get('fecha_especifica'),
+            data['hora_inicio'],
+            data['hora_fin']
+        )
+    )
+    conn.commit()
+    new_id = cursor.lastrowid
+    conn.close()
+    return jsonify({**data, 'id': new_id, 'profesional_id': prof_id}), 201
+
+@app.route('/disponibilidades/<int:id>', methods=['PUT'])
+def actualizar_disponibilidad(id):
+    data = request.get_json()
+    conn = get_db_connection()
+    conn.execute(
+        'UPDATE disponibilidades SET dia_semana = ?, fecha_especifica = ?, hora_inicio = ?, hora_fin = ? WHERE id = ?',
+        (
+            data.get('dia_semana'),
+            data.get('fecha_especifica'),
+            data['hora_inicio'],
+            data['hora_fin'],
+            id
+        )
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'actualizado'})
+
+@app.route('/disponibilidades/<int:id>', methods=['DELETE'])
+def eliminar_disponibilidad(id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM disponibilidades WHERE id = ?', (id,))
     conn.commit()
     conn.close()
     return jsonify({'status': 'eliminado'})

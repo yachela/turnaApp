@@ -61,5 +61,17 @@ conn.execute('''
     );
 ''')
 
+conn.execute('''
+    CREATE TABLE IF NOT EXISTS disponibilidades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profesional_id INTEGER NOT NULL,
+        dia_semana INTEGER,       -- 0=domingo, 1=lunes, ..., 6=sábado
+        fecha_especifica TEXT,    -- YYYY-MM-DD para excepciones
+        hora_inicio TEXT NOT NULL,-- HH:MM
+        hora_fin TEXT NOT NULL,   -- HH:MM
+        FOREIGN KEY (profesional_id) REFERENCES profesionales(id)
+    );
+''')
+
 conn.commit()
 conn.close()

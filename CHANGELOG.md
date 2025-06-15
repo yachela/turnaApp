@@ -4,6 +4,13 @@ Todas las versiones importantes del proyecto Turna, ordenadas cronológicamente.
 
 ---
 
+## [v1.2] - 2025-06-08
+### Corregido
+- Puerto de Flask cambiado a 5001 para evitar conflicto con AirPlay Receiver que ocupa el puerto 5000 en macOS.
+- Añadidos headers CORS en Flask (`CORS(app)` y manejador `@after_request`) para permitir peticiones desde el frontend.
+- Configuración de proxy en Vite redirigiendo `/profesionales` a `http://localhost:5001` para resolver bloqueos CORS.
+
+
 ## [v1.1] - 2025-06-07
 
 ### Agregado
@@ -21,3 +28,4 @@ Todas las versiones importantes del proyecto Turna, ordenadas cronológicamente.
 - Estructura base del proyecto en Flask
 - Clases iniciales: `Profesional`, `Cliente`, `Servicio`, `Turno`
 - Creación del repositorio y primer versionado (`v1.0`)
+

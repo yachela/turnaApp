@@ -178,22 +178,6 @@ def listar_disponibilidades(prof_id):
     conn.close()
     return jsonify([dict(row) for row in rows])
 
-@app.route('/profesionales/<int:prof_id>/disponibilidades_libres', methods=['GET'])
-def listar_disponibilidades_libres(prof_id):
-    conn = get_db_connection()
-    rows = conn.execute("""
-        SELECT d.*
-        FROM disponibilidades d
-        WHERE d.profesional_id = ?
-          AND d.id NOT IN (
-              SELECT disponibilidad_id
-              FROM turnos
-              WHERE profesional_id = ?
-          )
-    """, (prof_id, prof_id)).fetchall()
-    conn.close()
-    return jsonify([dict(row) for row in rows])
-
 @app.route('/profesionales/<int:prof_id>/disponibilidades', methods=['POST'])
 def crear_disponibilidad(prof_id):
     data = request.get_json()

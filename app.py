@@ -121,7 +121,22 @@ def eliminar_servicio(id):
 @app.route('/turnos', methods=['GET'])
 def listar_turnos():
     conn = get_db_connection()
-    rows = conn.execute('SELECT * FROM turnos').fetchall()
+    rows = conn.execute("""
+        SELECT
+            t.id,
+            t.profesional_id,
+            p.nombre AS profesional_nombre,
+            p.especialidad AS profesional_especialidad,
+            t.servicio_id,
+            s.nombre AS servicio_nombre,
+            s.duracion AS servicio_duracion,
+            s.precio AS servicio_precio,
+            t.fecha,
+            t.hora
+        FROM turnos t
+        JOIN profesionales p ON t.profesional_id = p.id
+        JOIN servicios s ON t.servicio_id = s.id
+    """).fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
 

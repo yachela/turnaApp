@@ -48,6 +48,19 @@ conn.executemany(
     'INSERT OR IGNORE INTO servicios (nombre, duracion, precio, profesional_id) VALUES (?, ?, ?, ?)',
     servicios
 )
+
+# Seed initial turnos (appointments)
+turnos = [
+    (1, 1, 1, '2025-06-20', '09:00'),
+    (1, 3, 2, '2025-06-21', '10:30'),
+    (2, 2, 3, '2025-06-22', '11:00'),
+    (3, 1, 4, '2025-06-23', '14:00')
+]
+conn.executemany(
+    'INSERT OR IGNORE INTO turnos (profesional_id, cliente_id, servicio_id, fecha, hora) VALUES (?, ?, ?, ?, ?)',
+    turnos
+)
+
 conn.execute('''
     CREATE TABLE IF NOT EXISTS turnos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,6 +85,19 @@ conn.execute('''
         FOREIGN KEY (profesional_id) REFERENCES profesionales(id)
     );
 ''')
+
+disponibilidades = [
+
+    (1, 1, None, '08:00', '12:00'),
+    (1, 3, None, '14:00', '18:00'),
+    (2, 2, None, '09:00', '13:00'),
+
+    (3, None, '2025-06-25', '10:00', '15:00')
+]
+conn.executemany(
+    'INSERT OR IGNORE INTO disponibilidades (profesional_id, dia_semana, fecha_especifica, hora_inicio, hora_fin) VALUES (?, ?, ?, ?, ?)',
+    disponibilidades
+)
 
 conn.commit()
 conn.close()

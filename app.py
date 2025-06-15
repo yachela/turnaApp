@@ -167,6 +167,7 @@ def eliminar_turno(id):
     conn.close()
     return jsonify({'status': 'eliminado'})
 
+
 @app.route('/profesionales/<int:prof_id>/disponibilidades', methods=['GET'])
 def listar_disponibilidades(prof_id):
     conn = get_db_connection()
@@ -174,6 +175,22 @@ def listar_disponibilidades(prof_id):
         'SELECT * FROM disponibilidades WHERE profesional_id = ?',
         (prof_id,)
     ).fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
+
+@app.route('/profesionales/<int:prof_id>/disponibilidades_libres', methods=['GET'])
+def listar_disponibilidades_libres(prof_id):
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT d.*
+        FROM disponibilidades d
+        WHERE d.profesional_id = ?
+          AND d.id NOT IN (
+              SELECT disponibilidad_id
+              FROM turnos
+              WHERE profesional_id = ?
+          )
+    """, (prof_id, prof_id)).fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
 
@@ -221,6 +238,34 @@ def eliminar_disponibilidad(id):
     conn.commit()
     conn.close()
     return jsonify({'status': 'eliminado'})
+
+@app.route('/profesionales/<int:prof_id>/disponibilidades_libres', methods=['GET'])
+def listar_disponibilidades_libres(prof_id):
+    """
+    1. Con get_db_connection() abrimos la conexión a la base SQLite.
+    2. La consulta SELECT trae todas las filas de 'disponibilidades'
+       donde profesional_id coincide con prof_id.
+    3. El AND NOT IN (...) excluye aquellas franjas cuyo id ya
+       exista en la tabla 'turnos' para ese mismo profesional.
+    4. Devolvemos un JSON con solo los registros libres.
+    """
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT d.*
+        FROM disponibilidades d
+        WHERE d.profesional_id = ?
+          AND d.id NOT IN (
+              SELECT disponibilidad_id
+              FROM turnos
+              WHERE profesional_id = ?
+          )
+        """,
+        (prof_id, prof_id)
+    ).fetchall()
+    conn.close()
+
+    return jsonify([dict(row) for row in rows])
 
 if __name__ == '__main__':
     app.run(debug=True, port=5002)

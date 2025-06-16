@@ -1,6 +1,6 @@
-# Turna
+# TurnApp
 
-**Turna** es un sistema web de gestión de turnos orientado a profesionales independientes  
+**TurnApp** es un sistema web de gestión de turnos orientado a profesionales independientes  
 (psicólogos, nutricionistas, kinesiólogos, coaches, etc.), diseñado para optimizar agendas,  
 reducir ausencias y mejorar la experiencia de reserva de citas.
 
@@ -36,6 +36,38 @@ reducir ausencias y mejorar la experiencia de reserva de citas.
 3. **Notificaciones** por email/SMS (SendGrid, Twilio).  
 4. **Pruebas de integración** en frontend con React Testing Library.  
 5. **CI/CD y despliegue** (GitHub Actions, Heroku/Netlify, Vercel).
+
+---
+
+## Guía de configuración y ejecución
+
+### 1. Clonar el repositorio
+```bash
+git clone https://github.com/yachela/turnaApp.git
+cd turnaApp
+```
+### 2. Backend (Flask + SQLite)
+```bash
+python3 -m venv venv
+# macOS/Linux
+source venv/bin/activate
+# Windows:
+# venv\Scripts\activate
+pip install -r requirements.txt
+python init_db.py
+python app.py  
+```
+### 3. Frontend (React + Vite)
+```bash
+cd turna-frontend
+npm install
+npm run dev
+```
+### 4. Ejecutar tests de backend
+```bash
+cd ..
+python -m unittest discover tests
+```
 
 ---
 

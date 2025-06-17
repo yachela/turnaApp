@@ -4,6 +4,19 @@ Todas las versiones importantes del proyecto Turna, ordenadas cronológicamente.
 
 ---
 
+## [v1.3] - 2025-06-15
+
+### Agregado
+- Semillas iniciales de `turnos` y `disponibilidades` en `init_db.py` para poblar la base de datos al iniciar.
+- Nuevos tests en `tests/test_servicios.py` que verifican la inserción de servicios y previenen profesionales duplicados.
+- Se incluyeron datos de ejemplo en `database.db` para demos y pruebas rápidas.
+
+### Mejorado
+- Organización de tests: archivo `tests/test_servicios.py` y limpieza de `__pycache__`.
+- Actualización del `CHANGELOG.md` con esta sección de seeds y tests.
+
+---
+
 ## [v1.2] - 2025-06-08
 ### Corregido
 - Puerto de Flask cambiado a 5001 para evitar conflicto con AirPlay Receiver que ocupa el puerto 5000 en macOS.

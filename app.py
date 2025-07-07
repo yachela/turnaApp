@@ -1,9 +1,20 @@
 from flask import Flask, jsonify, request
+import jwt
+import datetime
+import os
+from dotenv import load_dotenv
+from functools import wraps
+from werkzeug.security import generate_password_hash
 from flask_cors import CORS
 import sqlite3
 
 app = Flask(__name__)
 CORS(app)
+load_dotenv()
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+refresh_tokens = set()
+
 
 @app.after_request
 def add_cors_headers(response):
@@ -247,6 +258,97 @@ def listar_disponibilidades_libres(prof_id):
     ).fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
+
+@app.route('/registration', methods=['POST'])
+def register():
+    data = request.get_json()
+
+    nombre = data.get('nombre')
+    email = data.get('email')
+    contrasena = data.get('contrasena')
+
+    if not nombre or not email or not contrasena:
+        return jsonify({'message': 'Todos los campos son obligatorios'}), 400
+
+    hashed_password = generate_password_hash(contrasena)
+
+    try:
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO usuarios (nombre, email, contrasena, role) VALUES (?, ?, ?, ?)',
+            (nombre, email, hashed_password, 'cliente')
+        )
+        conn.commit()
+        return jsonify({'message': 'Usuario registrado', 'success': True}), 201
+
+    except sqlite3.IntegrityError as e:
+        print("🔴 DB error:", e)  
+        return jsonify({'message': f'Error de base de datos: {str(e)}', 'success': False}), 409
+    finally:
+        conn.close()
+
+def create_access_token(username):
+    token_data = {
+        'username': username,
+        'exp': datetime.datetime.now() + datetime.timedelta(minutes=15)
+    }
+    return jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
+
+def create_refresh_token(username):
+    token_data = {
+        'username': username,
+        'exp': datetime.datetime.now() + datetime.timedelta(days=7)
+    }
+    token = jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
+    refresh_tokens.add(token)
+    return token
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+
+    # Aquí deberías verificar las credenciales con tu base de datos
+    if username == 'admin' and password == 'password':
+        access_token = create_access_token(username)
+        refresh_token = create_refresh_token(username)
+        return jsonify({
+            'access_token': access_token,
+            'refresh_token': refresh_token
+        })
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'Authorization' in request.headers:
+            parts = request.headers['Authorization'].split()
+            if len(parts) == 2 and parts[0] == 'Bearer':
+                token = parts[1]
+
+        if not token:
+            return jsonify({'message': 'No hay token!'}), 401
+
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            current_user = data['username']
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'Token caducado!'}), 401
+        except Exception:
+            return jsonify({'message': 'Token invalido!'}), 401
+
+        return f(current_user, *args, **kwargs)
+    return decorated
+
+@app.route('/usuarios', methods=['GET'])
+def get_usuarios():
+    conn = get_db_connection()
+    rows = conn.execute('SELECT * FROM usuarios').fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5002)

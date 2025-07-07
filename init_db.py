@@ -3,6 +3,20 @@ import sqlite3
 conn = sqlite3.connect('database.db')
 
 conn.execute('''
+    DROP TABLE IF EXISTS usuarios;
+''')
+
+conn.execute('''
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        contrasena TEXT NOT NULL,
+        role TEXT DEFAULT 'cliente'
+    );
+''')
+
+conn.execute('''
    CREATE TABLE IF NOT EXISTS profesionales (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      nombre TEXT NOT NULL,

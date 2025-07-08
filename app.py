@@ -276,14 +276,14 @@ def register():
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO usuarios (nombre, email, contrasena, role) VALUES (?, ?, ?, ?)',
+            'INSERT INTO usuarios (nombre, email, contrasena, rol) VALUES (?, ?, ?, ?)',
             (nombre, email, hashed_password, 'cliente')
         )
         conn.commit()
         return jsonify({'message': 'Usuario registrado', 'success': True}), 201
 
     except sqlite3.IntegrityError as e:
-        print("🔴 DB error:", e)  
+        print("DB error:", e)  
         return jsonify({'message': f'Error de base de datos: {str(e)}', 'success': False}), 409
     finally:
         conn.close()
@@ -348,6 +348,73 @@ def get_usuarios():
     rows = conn.execute('SELECT * FROM usuarios').fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
+
+@app.route('/usuarios/<int:id>', methods=['GET'])
+def obtener_usuario(id):
+    conn = get_db_connection()
+    row = conn.execute('SELECT * FROM usuarios WHERE id = ?', (id,)).fetchone()
+    conn.close()
+    if row is None:
+        return jsonify({'error': 'No encontrado'}), 404
+    return jsonify(dict(row))
+
+@app.route('/usuarios', methods=['POST'])
+def crear_usuario():
+    data = request.get_json()
+
+    nombre = data.get('nombre')
+    email = data.get('email')
+    contrasena = data.get('contrasena')
+    rol = data.get('rol')
+
+    if not nombre or not email or not contrasena:
+        return jsonify({'message': 'Todos los campos son obligatorios'}), 400
+
+    hashed_password = generate_password_hash(contrasena)
+
+    try:
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO usuarios (nombre, email, contrasena, rol) VALUES (?, ?, ?, ?)',
+            (nombre, email, hashed_password, rol)
+        )
+        conn.commit()
+        return jsonify({'message': 'Usuario registrado', 'success': True}), 201
+
+    except sqlite3.IntegrityError as e:
+        print("DB error:", e)  
+        return jsonify({'message': f'Error de base de datos: {str(e)}', 'success': False}), 409
+    finally:
+        conn.close()
+
+@app.route('/usuarios/<int:id>', methods=['PUT'])
+def actualizar_usuario(id):
+    data = request.get_json()
+    conn = get_db_connection()
+    contrasena = data.get('contrasena', '').strip()
+    if 'contrasena':
+        hashed_password = generate_password_hash(contrasena)
+        conn.execute(
+            'UPDATE usuarios SET nombre = ?, email = ?, contrasena = ?, rol = ? WHERE id = ?',
+            (data['nombre'], data['email'], hashed_password, data['rol'], id)
+        )
+    else:
+        conn.execute(
+            'UPDATE usuarios SET nombre = ?, email = ?, rol = ? WHERE id = ?',
+            (data['nombre'], data['email'], data['rol'], id)
+        )
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'actualizado'})
+
+@app.route('/usuarios/<int:id>', methods=['DELETE'])
+def eliminar_usuario(id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM usuarios WHERE id = ?', (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'eliminado'})
 
 
 if __name__ == '__main__':

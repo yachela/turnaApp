@@ -12,7 +12,7 @@ conn.execute('''
         nombre TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         contrasena TEXT NOT NULL,
-        role TEXT DEFAULT 'cliente'
+        rol TEXT DEFAULT 'cliente'
     );
 ''')
 

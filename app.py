@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 import jwt
 import datetime
+#from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from functools import wraps
@@ -293,8 +294,9 @@ def create_access_token(usuario):
         'nombre': usuario['nombre'],
         'id': usuario['id'],
         'rol': usuario['rol'],
-        'exp': datetime.datetime.now() + datetime.timedelta(minutes=15)
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15)
     }
+    print("Tiempo de creacion del token (servidor):", datetime.datetime.now(datetime.timezone.utc))
     return jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
 
 def create_refresh_token(usuario):
@@ -302,7 +304,7 @@ def create_refresh_token(usuario):
         'nombre': usuario['nombre'],
         'id': usuario['id'],
         'rol': usuario['rol'],
-        'exp': datetime.datetime.now() + datetime.timedelta(days=7)
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
     }
     token = jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
     refresh_tokens.add(token)
@@ -343,19 +345,25 @@ def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
+        print("Headers recibidos:", dict(request.headers))
         if 'Authorization' in request.headers:
             parts = request.headers['Authorization'].split()
             if len(parts) == 2 and parts[0] == 'Bearer':
                 token = parts[1]
+                print("Token recibido:", token)
 
         if not token:
             return jsonify({'message': 'No hay token!'}), 401
 
         try:
+            print("Tiempo actual (servidor):", datetime.datetime.now())
             token_data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            print("Datos del token decodificado:", token_data)
         except jwt.ExpiredSignatureError:
+            print("Token caducado")
             return jsonify({'message': 'Token caducado!'}), 401
         except Exception:
+            print("Token invalido")
             return jsonify({'message': 'Token invalido!'}), 401
         
         return f(token_data, *args, **kwargs)
@@ -371,7 +379,6 @@ def admin_required(f):
     return decorated
 
 @app.route('/usuarios', methods=['GET'])
-#@admin_required
 def get_usuarios():
     conn = get_db_connection()
     rows = conn.execute('SELECT * FROM usuarios').fetchall()
@@ -438,7 +445,9 @@ def actualizar_usuario(id):
     return jsonify({'status': 'actualizado'})
 
 @app.route('/usuarios/<int:id>', methods=['DELETE'])
-def eliminar_usuario(id):
+@admin_required
+def eliminar_usuario(usuario_admin, id):
+    print("Usuario admin:", usuario_admin)
     conn = get_db_connection()
     conn.execute('DELETE FROM usuarios WHERE id = ?', (id,))
     conn.commit()

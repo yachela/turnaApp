@@ -4,7 +4,7 @@ import datetime
 import os
 from dotenv import load_dotenv
 from functools import wraps
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 import sqlite3
 
@@ -273,7 +273,7 @@ def register():
     hashed_password = generate_password_hash(contrasena)
 
     try:
-        conn = sqlite3.connect('database.db')
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             'INSERT INTO usuarios (nombre, email, contrasena, rol) VALUES (?, ?, ?, ?)',
@@ -288,16 +288,20 @@ def register():
     finally:
         conn.close()
 
-def create_access_token(username):
+def create_access_token(usuario):
     token_data = {
-        'username': username,
+        'nombre': usuario['nombre'],
+        'id': usuario['id'],
+        'rol': usuario['rol'],
         'exp': datetime.datetime.now() + datetime.timedelta(minutes=15)
     }
     return jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
 
-def create_refresh_token(username):
+def create_refresh_token(usuario):
     token_data = {
-        'username': username,
+        'nombre': usuario['nombre'],
+        'id': usuario['id'],
+        'rol': usuario['rol'],
         'exp': datetime.datetime.now() + datetime.timedelta(days=7)
     }
     token = jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
@@ -307,17 +311,33 @@ def create_refresh_token(username):
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
-    username = data.get('username')
-    password = data.get('password')
+    data_email = data.get('email')
+    contrasena = data.get('contrasena')
 
-    # Aquí deberías verificar las credenciales con tu base de datos
-    if username == 'admin' and password == 'password':
-        access_token = create_access_token(username)
-        refresh_token = create_refresh_token(username)
-        return jsonify({
-            'access_token': access_token,
-            'refresh_token': refresh_token
-        })
+    conn = get_db_connection()
+    row = conn.execute(
+        'SELECT id, nombre, email, contrasena, rol FROM usuarios WHERE email = ?',
+        (data_email,)
+    ).fetchone()
+    conn.close()
+
+    if row is None:
+        return jsonify({'message': 'Credenciales incorrectas', 'success': False}), 401
+
+    if not check_password_hash(row['contrasena'], contrasena):
+        return jsonify({'message': 'Credenciales incorrectas', 'success': False}), 401
+
+    usuario = dict(row)
+    print("Usuario autenticado:", usuario);
+    access_token = create_access_token(usuario)
+    refresh_token = create_refresh_token(usuario)
+
+    return jsonify({
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'success': True
+    })
+
 
 def token_required(f):
     @wraps(f)
@@ -332,17 +352,26 @@ def token_required(f):
             return jsonify({'message': 'No hay token!'}), 401
 
         try:
-            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            current_user = data['username']
+            token_data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         except jwt.ExpiredSignatureError:
             return jsonify({'message': 'Token caducado!'}), 401
         except Exception:
             return jsonify({'message': 'Token invalido!'}), 401
+        
+        return f(token_data, *args, **kwargs)
+    return decorated
 
-        return f(current_user, *args, **kwargs)
+def admin_required(f):
+    @wraps(f)
+    @token_required  
+    def decorated(usuario, *args, **kwargs):
+        if usuario.get('rol') != 'admin':
+            return jsonify({'message': 'Acceso denegado: solo para administradores'}), 403
+        return f(usuario, *args, **kwargs)
     return decorated
 
 @app.route('/usuarios', methods=['GET'])
+#@admin_required
 def get_usuarios():
     conn = get_db_connection()
     rows = conn.execute('SELECT * FROM usuarios').fetchall()
@@ -373,7 +402,7 @@ def crear_usuario():
     hashed_password = generate_password_hash(contrasena)
 
     try:
-        conn = sqlite3.connect('database.db')
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             'INSERT INTO usuarios (nombre, email, contrasena, rol) VALUES (?, ?, ?, ?)',

@@ -1,4 +1,5 @@
 import sqlite3
+from werkzeug.security import generate_password_hash
 
 conn = sqlite3.connect('database.db')
 
@@ -15,6 +16,12 @@ conn.execute('''
         rol TEXT DEFAULT 'cliente'
     );
 ''')
+
+hashed_pw = generate_password_hash("adminmailar")
+conn.execute('''
+    INSERT INTO usuarios (nombre, email, contrasena, rol)
+    VALUES (?, ?, ?, ?)
+''', ("Admin", "admin@mail.ar", hashed_pw, "admin"))
 
 conn.execute('''
    CREATE TABLE IF NOT EXISTS profesionales (

@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, request
 import jwt
 import datetime
-#from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from functools import wraps
@@ -14,7 +13,7 @@ CORS(app)
 load_dotenv()
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
-refresh_tokens = set()
+#refresh_tokens = set()
 
 
 @app.after_request
@@ -307,7 +306,7 @@ def create_refresh_token(usuario):
         'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
     }
     token = jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
-    refresh_tokens.add(token)
+    #refresh_tokens.add(token)
     return token
 
 @app.route('/refresh', methods=['POST'])
@@ -330,6 +329,7 @@ def login():
     data = request.json
     data_email = data.get('email')
     contrasena = data.get('contrasena')
+    print("Datos de login recibidos:", data)
 
     conn = get_db_connection()
     row = conn.execute(
@@ -360,7 +360,7 @@ def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
-        print("Headers recibidos:", dict(request.headers))
+        #print("Headers recibidos:", dict(request.headers))
         if 'Authorization' in request.headers:
             parts = request.headers['Authorization'].split()
             if len(parts) == 2 and parts[0] == 'Bearer':
@@ -390,10 +390,11 @@ def admin_required(f):
     def decorated(usuario, *args, **kwargs):
         if usuario.get('rol') != 'admin':
             return jsonify({'message': 'Acceso denegado: solo para administradores'}), 403
-        return f(usuario, *args, **kwargs)
+        return f(*args, **kwargs)
     return decorated
 
 @app.route('/usuarios', methods=['GET'])
+@admin_required
 def get_usuarios():
     conn = get_db_connection()
     rows = conn.execute('SELECT * FROM usuarios').fetchall()
@@ -401,6 +402,7 @@ def get_usuarios():
     return jsonify([dict(row) for row in rows])
 
 @app.route('/usuarios/<int:id>', methods=['GET'])
+@admin_required
 def obtener_usuario(id):
     conn = get_db_connection()
     row = conn.execute('SELECT * FROM usuarios WHERE id = ?', (id,)).fetchone()
@@ -410,6 +412,7 @@ def obtener_usuario(id):
     return jsonify(dict(row))
 
 @app.route('/usuarios', methods=['POST'])
+@admin_required
 def crear_usuario():
     data = request.get_json()
 
@@ -440,6 +443,7 @@ def crear_usuario():
         conn.close()
 
 @app.route('/usuarios/<int:id>', methods=['PUT'])
+@admin_required
 def actualizar_usuario(id):
     data = request.get_json()
     conn = get_db_connection()
@@ -461,8 +465,7 @@ def actualizar_usuario(id):
 
 @app.route('/usuarios/<int:id>', methods=['DELETE'])
 @admin_required
-def eliminar_usuario(usuario_admin, id):
-    print("Usuario admin:", usuario_admin)
+def eliminar_usuario(id):
     conn = get_db_connection()
     conn.execute('DELETE FROM usuarios WHERE id = ?', (id,))
     conn.commit()

@@ -13,9 +13,6 @@ CORS(app)
 load_dotenv()
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
-#refresh_tokens = set()
-
-
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -28,6 +25,77 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def create_access_token(usuario):
+    token_data = {
+        'nombre': usuario['nombre'],
+        'id': usuario['id'],
+        'rol': usuario['rol'],
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=3)
+    }
+    print("Tiempo de creacion del token (servidor):", datetime.datetime.now(datetime.timezone.utc))
+    return jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
+
+def create_refresh_token(usuario):
+    token_data = {
+        'nombre': usuario['nombre'],
+        'id': usuario['id'],
+        'rol': usuario['rol'],
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
+    }
+    token = jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
+    return token
+
+@app.route('/refresh', methods=['POST'])
+def refresh():
+    data = request.get_json()
+    refresh_token = data.get('refresh_token')
+
+    try:
+        token_data = jwt.decode(refresh_token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        new_access_token = create_access_token(token_data)
+        return jsonify({'access_token': new_access_token})
+    except jwt.ExpiredSignatureError:
+        return jsonify({'message': 'Refresh token caducado'}), 401
+    except Exception:
+        return jsonify({'message': 'Refresh token invalido'}), 401
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        #print("Headers recibidos:", dict(request.headers))
+        if 'Authorization' in request.headers:
+            parts = request.headers['Authorization'].split()
+            if len(parts) == 2 and parts[0] == 'Bearer':
+                token = parts[1]
+                print("Token recibido:", token)
+
+        if not token:
+            return jsonify({'message': 'No hay token!'}), 401
+
+        try:
+            print("Tiempo actual (servidor):", datetime.datetime.now())
+            token_data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            print("Datos del token decodificado:", token_data)
+        except jwt.ExpiredSignatureError:
+            print("Token caducado")
+            return jsonify({'message': 'Token caducado!'}), 401
+        except Exception:
+            print("Token invalido")
+            return jsonify({'message': 'Token invalido!'}), 401
+        
+        return f(token_data, *args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    @token_required  
+    def decorated(usuario, *args, **kwargs):
+        if usuario.get('rol') != 'admin':
+            return jsonify({'message': 'Acceso denegado: solo para administradores'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
 @app.route('/profesionales', methods=['GET'])
 def get_profesionales():
     conn = get_db_connection()
@@ -36,6 +104,7 @@ def get_profesionales():
     return jsonify([dict(row) for row in rows])
 
 @app.route('/profesionales', methods=['POST'])
+@admin_required
 def crear_profesional():
     data = request.get_json()
     conn = get_db_connection()
@@ -58,6 +127,7 @@ def obtener_profesional(id):
     return jsonify(dict(row))
 
 @app.route('/profesionales/<int:id>', methods=['PUT'])
+@admin_required
 def actualizar_profesional(id):
     data = request.get_json()
     conn = get_db_connection()
@@ -70,6 +140,7 @@ def actualizar_profesional(id):
     return jsonify({'status': 'actualizado'})
 
 @app.route('/profesionales/<int:id>', methods=['DELETE'])
+@admin_required
 def eliminar_profesional(id):
     conn = get_db_connection()
     conn.execute('DELETE FROM profesionales WHERE id = ?', (id,))
@@ -193,7 +264,6 @@ def eliminar_turno(id):
     conn.close()
     return jsonify({'status': 'eliminado'})
 
-
 @app.route('/profesionales/<int:prof_id>/disponibilidades', methods=['GET'])
 def listar_disponibilidades(prof_id):
     conn = get_db_connection()
@@ -288,41 +358,6 @@ def register():
     finally:
         conn.close()
 
-def create_access_token(usuario):
-    token_data = {
-        'nombre': usuario['nombre'],
-        'id': usuario['id'],
-        'rol': usuario['rol'],
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=3)
-    }
-    print("Tiempo de creacion del token (servidor):", datetime.datetime.now(datetime.timezone.utc))
-    return jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
-
-def create_refresh_token(usuario):
-    token_data = {
-        'nombre': usuario['nombre'],
-        'id': usuario['id'],
-        'rol': usuario['rol'],
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
-    }
-    token = jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
-    #refresh_tokens.add(token)
-    return token
-
-@app.route('/refresh', methods=['POST'])
-def refresh():
-    data = request.get_json()
-    refresh_token = data.get('refresh_token')
-
-    try:
-        token_data = jwt.decode(refresh_token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        new_access_token = create_access_token(token_data)
-        return jsonify({'access_token': new_access_token})
-    except jwt.ExpiredSignatureError:
-        return jsonify({'message': 'Refresh token caducado'}), 401
-    except Exception:
-        return jsonify({'message': 'Refresh token invalido'}), 401
-
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -354,44 +389,6 @@ def login():
         'refresh_token': refresh_token,
         'success': True
     })
-
-
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        #print("Headers recibidos:", dict(request.headers))
-        if 'Authorization' in request.headers:
-            parts = request.headers['Authorization'].split()
-            if len(parts) == 2 and parts[0] == 'Bearer':
-                token = parts[1]
-                print("Token recibido:", token)
-
-        if not token:
-            return jsonify({'message': 'No hay token!'}), 401
-
-        try:
-            print("Tiempo actual (servidor):", datetime.datetime.now())
-            token_data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            print("Datos del token decodificado:", token_data)
-        except jwt.ExpiredSignatureError:
-            print("Token caducado")
-            return jsonify({'message': 'Token caducado!'}), 401
-        except Exception:
-            print("Token invalido")
-            return jsonify({'message': 'Token invalido!'}), 401
-        
-        return f(token_data, *args, **kwargs)
-    return decorated
-
-def admin_required(f):
-    @wraps(f)
-    @token_required  
-    def decorated(usuario, *args, **kwargs):
-        if usuario.get('rol') != 'admin':
-            return jsonify({'message': 'Acceso denegado: solo para administradores'}), 403
-        return f(*args, **kwargs)
-    return decorated
 
 @app.route('/usuarios', methods=['GET'])
 @admin_required

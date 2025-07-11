@@ -294,7 +294,7 @@ def create_access_token(usuario):
         'nombre': usuario['nombre'],
         'id': usuario['id'],
         'rol': usuario['rol'],
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15)
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=3)
     }
     print("Tiempo de creacion del token (servidor):", datetime.datetime.now(datetime.timezone.utc))
     return jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
@@ -309,6 +309,21 @@ def create_refresh_token(usuario):
     token = jwt.encode(token_data, app.config['SECRET_KEY'], algorithm='HS256')
     refresh_tokens.add(token)
     return token
+
+@app.route('/refresh', methods=['POST'])
+def refresh():
+    data = request.get_json()
+    refresh_token = data.get('refresh_token')
+
+    try:
+        token_data = jwt.decode(refresh_token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        new_access_token = create_access_token(token_data)
+        return jsonify({'access_token': new_access_token})
+    except jwt.ExpiredSignatureError:
+        return jsonify({'message': 'Refresh token caducado'}), 401
+    except Exception:
+        return jsonify({'message': 'Refresh token invalido'}), 401
+
 
 @app.route('/login', methods=['POST'])
 def login():

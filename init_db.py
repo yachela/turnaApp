@@ -72,10 +72,10 @@ conn.executemany(
 
 # Seed initial turnos (appointments)
 turnos = [
-    (1, 1, 1, '2025-06-20', '09:00'),
+    (1, 2, 1, '2025-06-20', '09:00'),
     (1, 3, 2, '2025-06-21', '10:30'),
     (2, 2, 3, '2025-06-22', '11:00'),
-    (3, 1, 4, '2025-06-23', '14:00')
+    (3, 3, 4, '2025-06-23', '14:00')
 ]
 conn.executemany(
     'INSERT OR IGNORE INTO turnos (profesional_id, cliente_id, servicio_id, fecha, hora) VALUES (?, ?, ?, ?, ?)',
@@ -91,6 +91,7 @@ conn.execute('''
     fecha TEXT NOT NULL,
     hora TEXT NOT NULL,
     FOREIGN KEY (profesional_id) REFERENCES profesionales(id),
+    FOREIGN KEY (cliente_id) REFERENCES usuarios(id),
     FOREIGN KEY (servicio_id) REFERENCES servicios(id)
     );
 ''')

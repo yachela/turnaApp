@@ -12,6 +12,7 @@ app = Flask(__name__)
 CORS(app)
 load_dotenv()
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+print("Clave secreta cargada:", app.config['SECRET_KEY'])   
 
 @app.after_request
 def add_cors_headers(response):
@@ -230,6 +231,33 @@ def obtener_turno(id):
     if row is None:
         return jsonify({'error': 'No encontrado'}), 404
     return jsonify(dict(row))
+
+@app.route('/mis-turnos', methods=['GET'])
+@token_required
+def turnos_usuario(usuario):
+    usuario_id = usuario["id"]
+
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT
+            t.id,
+            t.profesional_id,
+            t.cliente_id,            
+            p.nombre AS profesional_nombre,
+            p.especialidad AS profesional_especialidad,
+            t.servicio_id,
+            s.nombre AS servicio_nombre,
+            s.duracion AS servicio_duracion,
+            s.precio AS servicio_precio,
+            t.fecha,
+            t.hora
+        FROM turnos t
+        JOIN profesionales p ON t.profesional_id = p.id
+        JOIN servicios s ON t.servicio_id = s.id
+        WHERE t.cliente_id = ?
+    """, (usuario_id,)).fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
 
 @app.route('/turnos', methods=['POST'])
 def crear_turno():

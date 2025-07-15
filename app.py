@@ -149,6 +149,14 @@ def eliminar_profesional(id):
     conn.close()
     return jsonify({'status': 'eliminado'})
 
+@app.route('/servicios', methods=['GET'])
+@admin_required
+def get_servicios():
+    conn = get_db_connection()
+    rows = conn.execute('SELECT * FROM servicios').fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
+
 @app.route('/profesionales/<int:prof_id>/servicios', methods=['GET'])
 def get_servicios_por_profesional(prof_id):
     conn = get_db_connection()
@@ -208,8 +216,10 @@ def listar_turnos():
         SELECT
             t.id,
             t.profesional_id,
+            t.cliente_id,            
             p.nombre AS profesional_nombre,
             p.especialidad AS profesional_especialidad,
+            c.nombre AS cliente_nombre,
             t.servicio_id,
             s.nombre AS servicio_nombre,
             s.duracion AS servicio_duracion,
@@ -219,6 +229,7 @@ def listar_turnos():
         FROM turnos t
         JOIN profesionales p ON t.profesional_id = p.id
         JOIN servicios s ON t.servicio_id = s.id
+        JOIN usuarios c ON t.cliente_id = c.id    
     """).fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
@@ -245,6 +256,7 @@ def turnos_usuario(usuario):
             t.cliente_id,            
             p.nombre AS profesional_nombre,
             p.especialidad AS profesional_especialidad,
+            c.nombre AS cliente_nombre,
             t.servicio_id,
             s.nombre AS servicio_nombre,
             s.duracion AS servicio_duracion,
@@ -254,6 +266,7 @@ def turnos_usuario(usuario):
         FROM turnos t
         JOIN profesionales p ON t.profesional_id = p.id
         JOIN servicios s ON t.servicio_id = s.id
+        JOIN usuarios c ON t.cliente_id = c.id
         WHERE t.cliente_id = ?
     """, (usuario_id,)).fetchall()
     conn.close()
@@ -273,12 +286,24 @@ def crear_turno():
     return jsonify({"status": "ok"}), 201
 
 @app.route('/turnos/<int:id>', methods=['PUT'])
-def actualizar_turno(id):
-    data = request.get_json()
+@token_required
+def actualizar_turno(usuario, id):
     conn = get_db_connection()
+    turno = conn.execute('SELECT * FROM turnos WHERE id = ?', (id,)).fetchone()
+
+    if not turno:
+        conn.close()
+        return jsonify({'message': 'Turno no encontrado'}), 404
+
+    if usuario['rol'] != 'admin' and turno['cliente_id'] != usuario['id']:
+        conn.close()
+        print("Usuario no autorizado para actualizar el turno")
+        return jsonify({'message': 'Acceso denegado'}), 403
+    
+    data = request.get_json()
     conn.execute(
-        'UPDATE turnos SET fecha = ?, hora = ? WHERE id = ?',
-        (data['fecha'], data['hora'], id)
+        'UPDATE turnos SET cliente_id = ?, profesional_id = ?, servicio_id =?, fecha = ?, hora = ? WHERE id = ?',
+        (data['cliente_id'], data['profesional_id'], data['servicio_id'], data['fecha'], data['hora'], id)
     )
     conn.commit()
     conn.close()
@@ -423,6 +448,14 @@ def login():
 def get_usuarios():
     conn = get_db_connection()
     rows = conn.execute('SELECT * FROM usuarios').fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in rows])
+
+@app.route('/clientes', methods=['GET'])
+@admin_required
+def get_clientes():
+    conn = get_db_connection()
+    rows = conn.execute('SELECT * FROM usuarios WHERE rol = "cliente" ').fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
 

@@ -9,7 +9,7 @@ from flask_cors import CORS
 import sqlite3
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 load_dotenv()
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 print("Clave secreta cargada:", app.config['SECRET_KEY'])   
@@ -159,6 +159,7 @@ def get_servicios():
 
 @app.route('/profesionales/<int:prof_id>/servicios', methods=['GET'])
 def get_servicios_por_profesional(prof_id):
+    print("Obteniendo servicios para el profesional con ID:", prof_id)
     conn = get_db_connection()
     rows = conn.execute(
         'SELECT * FROM servicios WHERE profesional_id = ?',
@@ -225,7 +226,8 @@ def listar_turnos():
             s.duracion AS servicio_duracion,
             s.precio AS servicio_precio,
             t.fecha,
-            t.hora
+            t.hora,
+            t.estado
         FROM turnos t
         JOIN profesionales p ON t.profesional_id = p.id
         JOIN servicios s ON t.servicio_id = s.id
@@ -262,24 +264,30 @@ def turnos_usuario(usuario):
             s.duracion AS servicio_duracion,
             s.precio AS servicio_precio,
             t.fecha,
-            t.hora
+            t.hora,
+            t.estado
         FROM turnos t
         JOIN profesionales p ON t.profesional_id = p.id
         JOIN servicios s ON t.servicio_id = s.id
         JOIN usuarios c ON t.cliente_id = c.id
-        WHERE t.cliente_id = ?
+        WHERE t.cliente_id = ? AND t.estado != 'cancelado'
     """, (usuario_id,)).fetchall()
     conn.close()
     return jsonify([dict(row) for row in rows])
 
 @app.route('/turnos', methods=['POST'])
-def crear_turno():
+@token_required
+def crear_turno(usuario):
     data = request.get_json()
+    estado = data.get('estado', 'pendiente')
     conn = get_db_connection()
+    if usuario['rol']=='admin':
+       clienteId = data['cliente_id']
+    else:
+       clienteId = usuario['id']
     conn.execute(
-        'INSERT INTO turnos (profesional_id, cliente_id, servicio_id, fecha, hora) VALUES (?, ?, ?, ?, ?)',
-        (data['profesional_id'], data['cliente_id'], data['servicio_id'],
-        data['fecha'], data['hora'])
+        'INSERT INTO turnos (profesional_id, cliente_id, servicio_id, fecha, hora, estado) VALUES (?, ?, ?, ?, ?, ?)',
+        (data['profesional_id'], clienteId, data['servicio_id'], data['fecha'], data['hora'], estado)
     )
     conn.commit()
     conn.close()
@@ -299,15 +307,46 @@ def actualizar_turno(usuario, id):
         conn.close()
         print("Usuario no autorizado para actualizar el turno")
         return jsonify({'message': 'Acceso denegado'}), 403
-    
+
     data = request.get_json()
-    conn.execute(
-        'UPDATE turnos SET cliente_id = ?, profesional_id = ?, servicio_id =?, fecha = ?, hora = ? WHERE id = ?',
-        (data['cliente_id'], data['profesional_id'], data['servicio_id'], data['fecha'], data['hora'], id)
-    )
+    if usuario['rol'] == 'admin':
+        conn.execute(
+            'UPDATE turnos SET cliente_id = ?, profesional_id = ?, servicio_id =?, fecha = ?, hora = ?, estado =? WHERE id = ?',
+            (data['cliente_id'], data['profesional_id'], data['servicio_id'], data['fecha'], data['hora'], data['estado'], id)
+        )
+    elif usuario['rol'] == 'cliente' and turno['cliente_id'] == usuario['id']:
+        conn.execute(
+            'UPDATE turnos SET estado =? WHERE id = ?',
+            (data['estado'], id)
+        )
     conn.commit()
     conn.close()
     return jsonify({'status': 'actualizado'})
+
+@app.route('/turnos/<int:turno_id>', methods=['PATCH'])
+@token_required 
+def actualizar_estado_turno(usuario, turno_id):
+    print("Actualizar estado de turno:", turno_id)
+    data = request.get_json()
+    print("Datos recibidos para actualizar estado de turno:", data)
+    nuevo_estado = data.get('estado')
+    conn = get_db_connection()
+    turno = conn.execute('SELECT * FROM turnos WHERE id = ?', (id,)).fetchone()
+
+    if not turno:
+        conn.close()
+        return jsonify({'message': 'Turno no encontrado'}), 404
+
+    if turno['cliente_id'] != usuario['id']:
+        conn.close()
+        print("Usuario no autorizado para actualizar este turno")
+        return jsonify({'message': 'Acceso denegado'}), 403
+
+    conn.execute('UPDATE turnos SET estado = ? WHERE id = ?', (nuevo_estado, turno_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Estado de turno actualizado con éxito"})
 
 @app.route('/turnos/<int:id>', methods=['DELETE'])
 def eliminar_turno(id):
